@@ -6,8 +6,9 @@ import morgan from 'morgan';
 import productsRouter from './routes/products.js';
 import ordersRouter from './routes/orders.js';
 import assistantRouter from './routes/assistant.js';
+import { prisma } from './lib/prisma.js';
 
-export function createApp() {
+export function createApp({ database = prisma } = {}) {
   const app = express();
   const allowedOrigins = new Set(
     [process.env.CORS_ORIGIN, process.env.FRONTEND_URL, 'http://localhost:5173']
@@ -26,7 +27,14 @@ export function createApp() {
   app.use((request, response, next) => { request.id = crypto.randomUUID(); response.setHeader('X-Request-ID', request.id); next(); });
   app.use(morgan(':method :url :status :response-time ms'));
 
-  app.get('/api/health', (_request, response) => response.json({ status: 'ok' }));
+  app.get('/api/health', async (_request, response) => {
+    try {
+      await database.$queryRaw`SELECT 1`;
+      return response.json({ status: 'ok' });
+    } catch {
+      return response.status(503).json({ status: 'error', message: 'Database is unavailable.' });
+    }
+  });
   app.use('/api/products', productsRouter);
   app.use('/api/orders', ordersRouter);
   app.use('/api/assistant', assistantRouter);
